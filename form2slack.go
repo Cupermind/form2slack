@@ -72,7 +72,6 @@ func Index(w http.ResponseWriter, r *http.Request) {
 //Slack function
 func Slack(w http.ResponseWriter, r *http.Request) {
 	api := slack.New(config.Slack.Token)
-	fmt.Printf("Slack token: %s", config.Slack.Token)
 	re, err := regexp.Compile(config.Regexp)
 	if err != nil {
 		fmt.Printf("Regexp error")
