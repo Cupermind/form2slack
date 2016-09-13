@@ -22,9 +22,10 @@ type Config struct {
 		Channel string `yaml:"channel"`
 		Text    string `yaml:"text"`
 	}
-	Regexp   string `yaml:"regexp"`
-	EndPoint string `yaml:"endpoint"`
-	Port     int    `yaml:"port"`
+	Regexp           string `yaml:"regexp"`
+	EndPoint         string `yaml:"endpoint"`
+	Port             int    `yaml:"port"`
+	CallBackURLField string `yaml:"callback_url_field"`
 }
 
 //App config
@@ -56,8 +57,6 @@ func main() {
 	http.HandleFunc("/", Index)
 	http.HandleFunc(fmt.Sprintf("%s", config.EndPoint), Slack)
 
-	fmt.Printf("Slack token: %s", config.Slack.Token)
-
 	err := http.ListenAndServe(fmt.Sprintf(":%d", config.Port), nil) // setting listening port
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
@@ -71,20 +70,23 @@ func Index(w http.ResponseWriter, r *http.Request) {
 
 //Slack function
 func Slack(w http.ResponseWriter, r *http.Request) {
-	api := slack.New(config.Slack.Token)
+	callbackURL := ""
+	//api := slack.New(config.Slack.Token)
 	re, err := regexp.Compile(config.Regexp)
 	if err != nil {
 		fmt.Printf("Regexp error")
 		return
 	}
-	params := slack.PostMessageParameters{}
+	//params := slack.PostMessageParameters{}
 	attachment := slack.Attachment{
 		Text:   config.Slack.Text,
 		Fields: []slack.AttachmentField{},
 	}
 	r.ParseForm()
 	for k, v := range r.Form {
-		if re.MatchString(k) {
+		if k == config.CallBackURLField {
+			callbackURL = strings.Join(v, "")
+		} else if re.MatchString(k) {
 			attachment.Fields = append(attachment.Fields,
 				slack.AttachmentField{
 					Title: k,
@@ -92,13 +94,18 @@ func Slack(w http.ResponseWriter, r *http.Request) {
 				})
 		}
 	}
-	if len(attachment.Fields) > 0 {
-		params.Attachments = []slack.Attachment{attachment}
-		channelID, timestamp, err := api.PostMessage(config.Slack.Channel, "Form2Slack", params)
-		if err != nil {
-			fmt.Printf("%s\n", err)
-			return
+	/*
+		if len(attachment.Fields) > 0 {
+			params.Attachments = []slack.Attachment{attachment}
+			channelID, timestamp, err := api.PostMessage(config.Slack.Channel, "Form2Slack", params)
+			if err != nil {
+				fmt.Printf("%s\n", err)
+				return
+			}
+			fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
 		}
-		fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
+	*/
+	if callbackURL != "" {
+		http.Redirect(w, r, callbackURL, 301)
 	}
 }

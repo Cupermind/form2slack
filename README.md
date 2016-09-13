@@ -15,6 +15,7 @@ slack:
 endpoint: "/ENDPOINT"
 regexp: ".*"
 port: SOMEPORT
+callback_url_field: "FIELD"
 ```
 
 For example if you have the following config:
@@ -27,8 +28,10 @@ slack:
 endpoint: "/slack"
 regexp: ".*"
 port: 8080
+callback_url_field: "FIELD"
 ```
 
 In form you should specify action `http://hostname:8080/slack`
 
 `regexp` - post only fields matching it.
+`callback_url_field` put this to your form `<input type="hidden" name="{{ callback_url_field }}" value="URL"`, so form2slack will redirect to `URL` after posting.
