@@ -8,7 +8,9 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/didip/tollbooth"
 	"github.com/nlopes/slack"
 	"gopkg.in/yaml.v2"
 )
@@ -26,6 +28,7 @@ type Config struct {
 	EndPoint         string `yaml:"endpoint"`
 	Port             int    `yaml:"port"`
 	CallBackURLField string `yaml:"callback_url_field"`
+	RPM              int64  `yaml:"rpm"`
 }
 
 //App config
@@ -55,7 +58,8 @@ func main() {
 	readConfig()
 
 	http.HandleFunc("/", Index)
-	http.HandleFunc(fmt.Sprintf("%s", config.EndPoint), Slack)
+	http.Handle(fmt.Sprintf("%s", config.EndPoint),
+		tollbooth.LimitFuncHandler(tollbooth.NewLimiter(config.RPM, time.Minute), Slack))
 
 	err := http.ListenAndServe(fmt.Sprintf(":%d", config.Port), nil) // setting listening port
 	if err != nil {
@@ -71,13 +75,13 @@ func Index(w http.ResponseWriter, r *http.Request) {
 //Slack function
 func Slack(w http.ResponseWriter, r *http.Request) {
 	callbackURL := ""
-	//api := slack.New(config.Slack.Token)
+	api := slack.New(config.Slack.Token)
 	re, err := regexp.Compile(config.Regexp)
 	if err != nil {
 		fmt.Printf("Regexp error")
 		return
 	}
-	//params := slack.PostMessageParameters{}
+	params := slack.PostMessageParameters{}
 	attachment := slack.Attachment{
 		Text:   config.Slack.Text,
 		Fields: []slack.AttachmentField{},
@@ -94,18 +98,18 @@ func Slack(w http.ResponseWriter, r *http.Request) {
 				})
 		}
 	}
-	/*
-		if len(attachment.Fields) > 0 {
-			params.Attachments = []slack.Attachment{attachment}
-			channelID, timestamp, err := api.PostMessage(config.Slack.Channel, "Form2Slack", params)
-			if err != nil {
-				fmt.Printf("%s\n", err)
-				return
-			}
-			fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
+	if len(attachment.Fields) > 0 {
+		params.Attachments = []slack.Attachment{attachment}
+		channelID, timestamp, err := api.PostMessage(config.Slack.Channel, "Form2Slack", params)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+			return
 		}
-	*/
+		fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
+	}
+
 	if callbackURL != "" {
 		http.Redirect(w, r, callbackURL, 301)
+		fmt.Printf("Redirecting user to %s", callbackURL)
 	}
 }
