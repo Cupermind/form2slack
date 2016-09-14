@@ -35,6 +35,11 @@ rpm: 1
 
 In form you should specify action `http://hostname:8080/slack`
 
-`regexp` - post only fields matching it.
-`callback_url_field` put this to your form `<input type="hidden" name="{{ callback_url_field }}" value="URL"`, so form2slack will redirect to `URL` after posting.
-`rpm` - requests per minute from one IP
+Fields:
+
+* `slack` - slack settings
+* `endpoint` - endpoint to hit from from, i.e. `/slack`
+* `regexp` - post only fields matching it.
+* `port` - port to bind
+* `callback_url_field` put this to your form `<input * type="hidden" name="{{ callback_url_field }}" value="URL"`, so form2slack will redirect to `URL` after posting.
+* `rpm` - requests per minute from one IP
