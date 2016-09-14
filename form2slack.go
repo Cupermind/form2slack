@@ -20,15 +20,21 @@ const configFile string = "config.yml"
 //Config of the app
 type Config struct {
 	Slack struct {
+		Enable  bool   `yaml:"enable"`
 		Token   string `yaml:"token"`
 		Channel string `yaml:"channel"`
-		Text    string `yaml:"text"`
+		Title   string `yaml:"title"`
+		From    string `yaml:"from"`
+		Color   string `yaml:"color"`
 	}
-	Regexp           string `yaml:"regexp"`
-	EndPoint         string `yaml:"endpoint"`
-	Port             int    `yaml:"port"`
-	CallBackURLField string `yaml:"callback_url_field"`
-	RPM              int64  `yaml:"rpm"`
+	Form struct {
+		Regexp           string `yaml:"regexp"`
+		CallBackURLField string `yaml:"callback_url_field"`
+		Replace          bool   `yaml:"replace"`
+	}
+	EndPoint string `yaml:"endpoint"`
+	Port     int    `yaml:"port"`
+	RPM      int64  `yaml:"rpm"`
 }
 
 //App config
@@ -69,47 +75,65 @@ func main() {
 
 //Index function
 func Index(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Request from %s to Index endpoint", r.RemoteAddr)
 	fmt.Fprintf(w, "This is Form2Slack")
 }
 
 //Slack function
 func Slack(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Request from %s to Slack endpoint", r.RemoteAddr)
 	callbackURL := ""
+	field := ""
 	api := slack.New(config.Slack.Token)
-	re, err := regexp.Compile(config.Regexp)
+	re, err := regexp.Compile(config.Form.Regexp)
 	if err != nil {
-		fmt.Printf("Regexp error")
+		log.Fatal("There is an error in regexp: ", err)
+		fmt.Fprintf(w, "You have error in regexp config")
 		return
 	}
 	params := slack.PostMessageParameters{}
 	attachment := slack.Attachment{
-		Text:   config.Slack.Text,
-		Fields: []slack.AttachmentField{},
+		Title:      config.Slack.Title,
+		Color:      config.Slack.Color,
+		Fields:     []slack.AttachmentField{},
+		MarkdownIn: []string{"fields"},
 	}
 	r.ParseForm()
 	for k, v := range r.Form {
-		if k == config.CallBackURLField {
+		field = k
+		if k == config.Form.CallBackURLField {
 			callbackURL = strings.Join(v, "")
-		} else if re.MatchString(k) {
+		} else if re.MatchString(k) && strings.Join(v, "") != "" {
+
+			if config.Form.Replace {
+				field = re.ReplaceAllString(k, "")
+			}
 			attachment.Fields = append(attachment.Fields,
 				slack.AttachmentField{
-					Title: k,
-					Value: strings.Join(v, ""),
+					Title: field,
+					Value: fmt.Sprintf("`%s`", strings.Join(v, "")),
 				})
 		}
 	}
-	if len(attachment.Fields) > 0 {
+	if config.Slack.Enable && len(attachment.Fields) > 0 {
 		params.Attachments = []slack.Attachment{attachment}
-		channelID, timestamp, err := api.PostMessage(config.Slack.Channel, "Form2Slack", params)
+		channelID, timestamp, err := api.PostMessage(config.Slack.Channel, config.Slack.From, params)
 		if err != nil {
-			fmt.Printf("%s\n", err)
+			log.Fatal("Error sending to Slack: ", err)
 			return
 		}
-		fmt.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
+		log.Printf("Message successfully sent to channel %s at %s", channelID, timestamp)
+	} else if config.Slack.Enable {
+		log.Printf("Warning, there were no fields in the form mathing request")
+	} else {
+		log.Printf("Sending to Slack disabled")
 	}
 
 	if callbackURL != "" {
 		http.Redirect(w, r, callbackURL, 301)
-		fmt.Printf("Redirecting user to %s", callbackURL)
+		log.Printf("Redirecting user to %s", callbackURL)
+	} else {
+		log.Printf("Warning, there was no field in the form matching callback_url_field (%s)",
+			config.Form.CallBackURLField)
 	}
 }

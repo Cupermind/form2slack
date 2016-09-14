@@ -9,28 +9,26 @@ Config file `config.yml`
 ```
 ---
 slack:
+  enable: yes
   token: "YOUR-TOKEN"
   channel: "#CHANNEL"
-  text: "you've got new message"
+  title: "You've got new message"
+  from: "Your awesome site"
+  color: "#36a64f"
+form:
+  regexp: '^site\-'
+  callback_url_field: "callback"
+  replace: yes
 endpoint: "/ENDPOINT"
-regexp: ".*"
 port: SOMEPORT
-callback_url_field: "FIELD"
 rpm: 1
 ```
 
+
 For example if you have the following config:
 ```
----
-slack:
-  token: "YOUR-TOKEN"
-  channel: "#CHANNEL"
-  text: "you've got new message"
 endpoint: "/slack"
-regexp: ".*"
 port: 8080
-callback_url_field: "FIELD"
-rpm: 1
 ```
 
 In form you should specify action `http://hostname:8080/slack`
@@ -38,8 +36,10 @@ In form you should specify action `http://hostname:8080/slack`
 Fields:
 
 * `slack` - slack settings
+* `form` - form settings
+*   `regexp` - post only fields matching it.
+*   `callback_url_field` put this to your form `<input * type="hidden" name="{{ callback_url_field }}" value="URL"`, so form2slack will redirect to `URL` after posting.
+*   `replace` - if set to true regexp will be replaced with empty string
 * `endpoint` - endpoint to hit from from, i.e. `/slack`
-* `regexp` - post only fields matching it.
 * `port` - port to bind
-* `callback_url_field` put this to your form `<input * type="hidden" name="{{ callback_url_field }}" value="URL"`, so form2slack will redirect to `URL` after posting.
 * `rpm` - requests per minute from one IP
