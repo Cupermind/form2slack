@@ -137,8 +137,8 @@ func Slack(w http.ResponseWriter, r *http.Request) {
 			log.Fatal("Recaptcha failed ", err)
 			return
 		} else if !success {
+			log.Printf("Recaptcha failed, redirecting to %s", failedRecaptchaCallbackURL)
 			http.Redirect(w, r, failedRecaptchaCallbackURL, 301)
-			log.Fatal("You failed to pass recaptcha, sorry (or not)")
 			return
 		}
 	}
