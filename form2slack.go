@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/didip/tollbooth"
+	"github.com/didip/tollbooth/limiter"
 	"github.com/nlopes/slack"
+	"gopkg.in/ezzarghili/recaptcha-go.v2"
 	"gopkg.in/yaml.v2"
 )
 
@@ -28,9 +30,14 @@ type Config struct {
 		Color   string `yaml:"color"`
 	}
 	Form struct {
-		Regexp           string `yaml:"regexp"`
-		CallBackURLField string `yaml:"callback_url_field"`
-		Replace          bool   `yaml:"replace"`
+		Regexp                          string `yaml:"regexp"`
+		CallBackURLField                string `yaml:"callback_url_field"`
+		FailedRecaptchaCallBackURLField string `yaml:"failed_recaptcha_callback_url_field"`
+		Replace                         bool   `yaml:"replace"`
+	}
+	Recaptchav2 struct {
+		Enable bool   `yaml:"enable"`
+		Secret string `yaml:"secret"`
 	}
 	EndPoint string `yaml:"endpoint"`
 	Port     int    `yaml:"port"`
@@ -62,10 +69,11 @@ func readConfig() {
 
 func main() {
 	readConfig()
+	lmt := tollbooth.NewLimiter(float64(config.RPM), &limiter.ExpirableOptions{DefaultExpirationTTL: time.Minute})
 
 	http.HandleFunc("/", Index)
 	http.Handle(fmt.Sprintf("%s", config.EndPoint),
-		tollbooth.LimitFuncHandler(tollbooth.NewLimiter(config.RPM, time.Minute), Slack))
+		tollbooth.LimitFuncHandler(lmt, Slack))
 
 	err := http.ListenAndServe(fmt.Sprintf(":%d", config.Port), nil) // setting listening port
 	if err != nil {
@@ -83,6 +91,8 @@ func Index(w http.ResponseWriter, r *http.Request) {
 func Slack(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Request from %s to Slack endpoint", r.RemoteAddr)
 	callbackURL := ""
+	failedRecaptchaCallbackURL := ""
+	recaptchaResponse := ""
 	field := ""
 	api := slack.New(config.Slack.Token)
 	re, err := regexp.Compile(config.Form.Regexp)
@@ -98,13 +108,17 @@ func Slack(w http.ResponseWriter, r *http.Request) {
 		Fields:     []slack.AttachmentField{},
 		MarkdownIn: []string{"fields"},
 	}
+
 	r.ParseForm()
 	for k, v := range r.Form {
 		field = k
-		if k == config.Form.CallBackURLField {
+		if k == "g-recaptcha-response" {
+			recaptchaResponse = strings.Join(v, "")
+		} else if k == config.Form.FailedRecaptchaCallBackURLField {
+			failedRecaptchaCallbackURL = strings.Join(v, "")
+		} else if k == config.Form.CallBackURLField {
 			callbackURL = strings.Join(v, "")
 		} else if re.MatchString(k) && strings.Join(v, "") != "" {
-
 			if config.Form.Replace {
 				field = re.ReplaceAllString(k, "")
 			}
@@ -113,6 +127,19 @@ func Slack(w http.ResponseWriter, r *http.Request) {
 					Title: field,
 					Value: fmt.Sprintf("`%s`", strings.Join(v, "")),
 				})
+		}
+	}
+
+	if config.Recaptchav2.Enable {
+		captcha, err := recaptcha.NewReCAPTCHA(config.Recaptchav2.Secret)
+		success, err := captcha.Verify(recaptchaResponse, r.RemoteAddr)
+		if err != nil {
+			log.Fatal("Recaptcha failed ", err)
+			return
+		} else if !success {
+			http.Redirect(w, r, failedRecaptchaCallbackURL, 301)
+			log.Fatal("You failed to pass recaptcha, sorry (or not)")
+			return
 		}
 	}
 	if config.Slack.Enable && len(attachment.Fields) > 0 {

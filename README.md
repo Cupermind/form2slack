@@ -18,7 +18,11 @@ slack:
 form:
   regexp: '^site\-'
   callback_url_field: "callback"
+  failed_recaptcha_callback_url_field: "failed"
   replace: yes
+recaptchav2:
+  enable: yes
+  secret: asdfasdf
 endpoint: "/ENDPOINT"
 port: SOMEPORT
 rpm: 1
